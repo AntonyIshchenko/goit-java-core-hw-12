@@ -13,10 +13,10 @@ public class FizzBuzzGenerator{
         }
 
         List<Function<Integer, String>> allFunctions = Arrays.asList(
-                this::fizz,      // індекс 0
-                this::buzz,      // індекс 1
-                this::fizzbuzz,  // індекс 2
-                this::number     // індекс 3
+                this::fizz,
+                this::buzz,
+                this::fizzbuzz,
+                this::number
         );
 
         List<List<String>> allLists = Arrays.asList(
