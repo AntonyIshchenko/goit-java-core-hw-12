@@ -6,7 +6,6 @@ import java.util.function.Function;
 
 public class FizzBuzzGenerator{
 
-
     public String generate(int n)  {
         if (n < 1) {
             return "Calculates only for values >=1 !";
