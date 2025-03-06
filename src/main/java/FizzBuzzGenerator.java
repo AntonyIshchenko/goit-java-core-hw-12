@@ -1,109 +1,67 @@
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.StringJoiner;
+import java.util.function.Function;
 
 public class FizzBuzzGenerator{
-    private int maxNumber;
-    private int currentNumber;
-    private final String[] cache = new String[4];
-    private final Object monitor = new Object();
 
-    public String generate(int n){
+
+    public String generate(int n)  {
         if (n < 1) {
             return "Calculates only for values >=1 !";
         }
 
-        this.maxNumber = n;
-        this.currentNumber = 1;
+        List<Function<Integer, String>> allFunctions = Arrays.asList(
+                this::fizz,      // індекс 0
+                this::buzz,      // індекс 1
+                this::fizzbuzz,  // індекс 2
+                this::number     // індекс 3
+        );
 
-        Thread ThreadA = new Thread(() -> {
-            synchronized (monitor) {
-                while (currentNumber <= maxNumber) {
-                    cache[0] = fizz(currentNumber);
-                    try {
-                        monitor.wait();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        } );
+        List<List<String>> allLists = Arrays.asList(
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>(),
+            new ArrayList<>()
+        );
 
-        Thread ThreadB = new Thread(() -> {
-            synchronized (monitor) {
-                while (currentNumber <= maxNumber) {
-                    cache[1] = buzz(currentNumber);
-                    try {
-                        monitor.wait();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        } );
+        Thread ThreadA = new Thread(() -> processNumbers(allLists.get(0), n, allFunctions.get(0)));
+        Thread ThreadB = new Thread(() -> processNumbers(allLists.get(1), n, allFunctions.get(1)));
+        Thread ThreadC = new Thread(() -> processNumbers(allLists.get(2), n, allFunctions.get(2)) );
+        Thread ThreadD = new Thread(() -> processNumbers(allLists.get(3), n, allFunctions.get(3)) );
 
-        Thread ThreadC = new Thread(() -> {
-            synchronized (monitor) {
-                while (currentNumber <= maxNumber) {
-                    cache[2] = fizzbuzz(currentNumber);
-                    try {
-                        monitor.wait();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        } );
+        ThreadA.start();
+        ThreadB.start();
+        ThreadC.start();
+        ThreadD.start();
 
-        Thread ThreadD = new Thread(() -> {
-            synchronized (monitor) {
-                while (currentNumber <= maxNumber) {
-                    cache[3] = number(currentNumber);
-                    try {
-                        monitor.wait();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        } );
+        try {
+            ThreadA.join();
+            ThreadB.join();
+            ThreadC.join();
+            ThreadD.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
-        boolean isStarted = false;
         StringJoiner joiner = new StringJoiner(", ");
-
-        while (currentNumber <= maxNumber){
-            if (!isStarted) {
-                ThreadA.start();
-                ThreadB.start();
-                ThreadC.start();
-                ThreadD.start();
-                isStarted = true;
-            }
-
-            while (true) {
-              if (cache[0] != null && cache[1] != null && cache[2] != null && cache[3] !=null) {
-
-                  for (int i=3; i>=0; i--){
-                      if (cache[i] != "") {
-                          joiner.add(cache[i]);
-                          break;
-                      }
-                  }
-
-                  for (int i=0; i<4; i++){
-                      cache[i] = null;
-                  }
-
-                  currentNumber++;
-
-                  synchronized (monitor) {
-                      monitor.notifyAll();
-                  }
-
-                  break;
-              }
+        for (int i=0; i < n; i++ ){
+            for (int j=3; j>=0; j--){
+                if (allLists.get(j).get(i) != "") {
+                    joiner.add(allLists.get(j).get(i));
+                    break;
+                }
             }
         }
 
         return joiner.toString();
+    }
+
+    private void processNumbers(List<String> list, int maxNumber,Function<Integer, String> function) {
+            for (int i = 1; i<= maxNumber; i++ ) {
+                list.add(function.apply(i));
+            }
     }
 
     private String fizz(int number){
