@@ -1,35 +1,63 @@
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 public class FizzBuzzGenerator{
+    private volatile AtomicInteger counter = new AtomicInteger();
+    private volatile String[] cache = new String[3];
+    private int finish;
+    private final String delimiter = ", ";
 
-
-    public String generate(int n)  {
+    public void generate(int n)  {
         if (n < 1) {
-            return "Calculates only for values >=1 !";
+            System.out.println("Calculates only for values >=1 !");
+            return;
         }
+
+        counter.set(1);
+        finish = n;
 
         List<Function<Integer, String>> allFunctions = Arrays.asList(
                 this::fizz,
                 this::buzz,
-                this::fizzbuzz,
-                this::number
+                this::fizzbuzz
         );
 
-        List<List<String>> allLists = Arrays.asList(
-            new ArrayList<>(),
-            new ArrayList<>(),
-            new ArrayList<>(),
-            new ArrayList<>()
-        );
+        Thread ThreadA = new Thread(() -> processNumbers( allFunctions.get(0), 0));
+        Thread ThreadB = new Thread(() -> processNumbers( allFunctions.get(1), 1));
+        Thread ThreadC = new Thread(() -> processNumbers( allFunctions.get(2), 2) );
+        Thread ThreadD = new Thread(() -> {
 
-        Thread ThreadA = new Thread(() -> processNumbers(allLists.get(0), n, allFunctions.get(0)));
-        Thread ThreadB = new Thread(() -> processNumbers(allLists.get(1), n, allFunctions.get(1)));
-        Thread ThreadC = new Thread(() -> processNumbers(allLists.get(2), n, allFunctions.get(2)) );
-        Thread ThreadD = new Thread(() -> processNumbers(allLists.get(3), n, allFunctions.get(3)) );
+            while (true) {
+                int counterValue = counter.get();
+                if (counterValue > finish) {
+                    break;
+                }
+
+                if (cache[0] == null || cache[1] ==null || cache[2]==null ) {
+                    continue;
+                }
+
+                String specValue = "";
+                for (String value : cache) {
+                    if (!value.isEmpty()) {
+                        specValue = value;
+                        break;
+                    }
+                }
+
+                number(specValue.isEmpty() ? (""+counterValue) : specValue);
+
+                synchronized (cache) {
+                  cache[0] = null;
+                  cache[1] = null;
+                  cache[2] = null;
+
+                  counter.incrementAndGet();
+                }
+            }
+        });
 
         ThreadA.start();
         ThreadB.start();
@@ -44,39 +72,38 @@ public class FizzBuzzGenerator{
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
-        StringJoiner joiner = new StringJoiner(", ");
-        for (int i=0; i < n; i++ ){
-            for (int j=3; j>=0; j--){
-                if (allLists.get(j).get(i) != "") {
-                    joiner.add(allLists.get(j).get(i));
-                    break;
-                }
-            }
-        }
-
-        return joiner.toString();
     }
 
-    private void processNumbers(List<String> list, int maxNumber,Function<Integer, String> function) {
-            for (int i = 1; i<= maxNumber; i++ ) {
-                list.add(function.apply(i));
+    private void processNumbers(Function<Integer, String> function, int cacheIndex) {
+        int cursor = 0;
+        while (true) {
+            int counterValue = counter.get();
+            if (counterValue > finish) {
+                break;
             }
+
+            if (cursor == counterValue) {
+                continue;
+            }
+
+            cache[cacheIndex] = function.apply(counterValue);
+            cursor = counterValue;
+        }
     }
 
     private String fizz(int number){
-        return (number%3 == 0) ? "fizz" : "";
+        return number%3 == 0 && number%5 != 0 ? "fizz" : "";
     }
 
     private String buzz(int number){
-        return (number%5 == 0) ? "buzz" : "";
+        return number%5 == 0 && number%3 != 0 ? "buzz" : "";
     }
 
-    private String fizzbuzz(int number){
-        return (number%3 == 0 && number%5 == 0 ) ? "fizzbuzz" : "";
+    private String fizzbuzz(int number) {
+        return number%3 == 0 && number%5 == 0 ? "fizzbuzz" : "";
     }
 
-    private String number(int number){
-        return (number%3 != 0 && number%5 != 0 ) ? ""+number : "";
+    private void number(String number){
+        System.out.print(number + (counter.get() == finish ? "" : delimiter));
     }
 }
