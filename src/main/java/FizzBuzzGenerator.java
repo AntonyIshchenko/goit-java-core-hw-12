@@ -1,35 +1,35 @@
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class FizzBuzzGenerator{
+public class FizzBuzzGenerator {
+    private volatile AtomicInteger counter = new AtomicInteger();
+    private volatile AtomicInteger processingThreads = new AtomicInteger();
+    private volatile String[] cache = new String[3];
+    private final Object lock = new Object();
+    private int finish;
 
-
-    public String generate(int n)  {
+    public void generate(int n) {
         if (n < 1) {
-            return "Calculates only for values >=1 !";
+            System.out.println("Calculates only for values >=1 !");
+            return;
         }
+
+        counter.set(1);
+        processingThreads.set(3);
+        finish = n;
 
         List<Function<Integer, String>> allFunctions = Arrays.asList(
                 this::fizz,
                 this::buzz,
-                this::fizzbuzz,
-                this::number
+                this::fizzbuzz
         );
 
-        List<List<String>> allLists = Arrays.asList(
-            new ArrayList<>(),
-            new ArrayList<>(),
-            new ArrayList<>(),
-            new ArrayList<>()
-        );
-
-        Thread ThreadA = new Thread(() -> processNumbers(allLists.get(0), n, allFunctions.get(0)));
-        Thread ThreadB = new Thread(() -> processNumbers(allLists.get(1), n, allFunctions.get(1)));
-        Thread ThreadC = new Thread(() -> processNumbers(allLists.get(2), n, allFunctions.get(2)) );
-        Thread ThreadD = new Thread(() -> processNumbers(allLists.get(3), n, allFunctions.get(3)) );
+        Thread ThreadA = new Thread(() -> processNumbers(allFunctions.get(0), 0));
+        Thread ThreadB = new Thread(() -> processNumbers(allFunctions.get(1), 1));
+        Thread ThreadC = new Thread(() -> processNumbers(allFunctions.get(2), 2));
+        Thread ThreadD = new Thread(this::processOutput);
 
         ThreadA.start();
         ThreadB.start();
@@ -44,39 +44,90 @@ public class FizzBuzzGenerator{
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
 
-        StringJoiner joiner = new StringJoiner(", ");
-        for (int i=0; i < n; i++ ){
-            for (int j=3; j>=0; j--){
-                if (allLists.get(j).get(i) != "") {
-                    joiner.add(allLists.get(j).get(i));
-                    break;
+    private void processNumbers(Function<Integer, String> function, int cacheIndex) {
+        while (true) {
+            int currentNumber = counter.get();
+
+            if (currentNumber > finish) {
+                break;
+            }
+
+            cache[cacheIndex] = function.apply(currentNumber);
+
+            int remainingThreads = processingThreads.decrementAndGet();
+            if (remainingThreads == 0) {
+                synchronized (lock) {
+                    lock.notifyAll();
+                }
+            }
+
+            synchronized (lock) {
+                try {
+                    while (counter.get() == currentNumber && currentNumber <= finish) {
+                        lock.wait();
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             }
         }
-
-        return joiner.toString();
     }
 
-    private void processNumbers(List<String> list, int maxNumber,Function<Integer, String> function) {
-            for (int i = 1; i<= maxNumber; i++ ) {
-                list.add(function.apply(i));
+    private void processOutput() {
+        while (true) {
+            String output = "";
+            int currentNumber = counter.get();
+
+            if (currentNumber > finish) {
+                break;
             }
+
+            synchronized (lock) {
+                try {
+                    while (processingThreads.get() > 0 && currentNumber <= finish) {
+                        lock.wait();
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+                for (String value : cache) {
+                    if (!value.isEmpty()) {
+                        output = value;
+                        break;
+                    }
+                }
+
+                number(output.isEmpty() ? ("" + currentNumber) : output);
+
+                Arrays.fill(cache, "");
+                counter.incrementAndGet();
+                processingThreads.set(3);
+
+                lock.notifyAll();
+            }
+        }
     }
 
-    private String fizz(int number){
-        return (number%3 == 0) ? "fizz" : "";
+    private String fizz(int number) {
+        return number % 3 == 0 && number % 5 != 0 ? "fizz" : "";
     }
 
-    private String buzz(int number){
-        return (number%5 == 0) ? "buzz" : "";
+    private String buzz(int number) {
+        return number % 5 == 0 && number % 3 != 0 ? "buzz" : "";
     }
 
-    private String fizzbuzz(int number){
-        return (number%3 == 0 && number%5 == 0 ) ? "fizzbuzz" : "";
+    private String fizzbuzz(int number) {
+        return number % 3 == 0 && number % 5 == 0 ? "fizzbuzz" : "";
     }
 
-    private String number(int number){
-        return (number%3 != 0 && number%5 != 0 ) ? ""+number : "";
+    private void number(String number) {
+        System.out.print(number + (counter.get() == finish ? "\n" : ", "));
     }
 }
