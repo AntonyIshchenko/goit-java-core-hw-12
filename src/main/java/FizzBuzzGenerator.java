@@ -4,8 +4,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 public class FizzBuzzGenerator {
-    private volatile AtomicInteger counter = new AtomicInteger();
-    private volatile AtomicInteger processingThreads = new AtomicInteger();
+    private AtomicInteger counter = new AtomicInteger();
+    private AtomicInteger processingThreads = new AtomicInteger();
     private volatile String[] cache = new String[3];
     private final Object lock = new Object();
     private int finish;
@@ -20,15 +20,9 @@ public class FizzBuzzGenerator {
         processingThreads.set(3);
         finish = n;
 
-        List<Function<Integer, String>> allFunctions = Arrays.asList(
-                this::fizz,
-                this::buzz,
-                this::fizzbuzz
-        );
-
-        Thread ThreadA = new Thread(() -> processNumbers(allFunctions.get(0), 0));
-        Thread ThreadB = new Thread(() -> processNumbers(allFunctions.get(1), 1));
-        Thread ThreadC = new Thread(() -> processNumbers(allFunctions.get(2), 2));
+        Thread ThreadA = new Thread(() -> processNumbers(this::fizz, 0));
+        Thread ThreadB = new Thread(() -> processNumbers(this::buzz, 1));
+        Thread ThreadC = new Thread(() -> processNumbers(this::fizzbuzz, 2));
         Thread ThreadD = new Thread(this::processOutput);
 
         ThreadA.start();
